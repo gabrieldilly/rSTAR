@@ -82,37 +82,37 @@ star_EM = function(y,
                    lambda = NULL,
                    y_max = Inf,
                    tol = 10^-10,
-                   max_iters = 1000){
+                   max_iters = 1000) {
 
   # Check: currently implemented for nonnegative integers
-  if(any(y < 0) || any(y != floor(y)))
+  if (any(y < 0) || any(y != floor(y)))
     stop('y must be nonnegative counts')
 
   # Check: y_max must be a true upper bound
-  if(any(y > y_max))
+  if (any(y > y_max))
     stop('y must not exceed y_max')
 
   # Check: does the transformation make sense?
   transformation = tolower(transformation);
-  if(is.na(match(transformation, c("identity", "log", "sqrt", "box-cox"))))
-    stop("The transformation must be one of 'identity', 'log', 'sqrt' or 'box-cox'")
+  if (is.na(match(transformation, c('identity', 'log', 'sqrt', 'box-cox'))))
+    stop('The transformation must be one of "identity", "log", "sqrt" or "box-cox"')
 
   # Check: does lambda need to be estimated?
   estimate_lambda = (transformation == 'box-cox' && is.null(lambda))
   #if(estimate_lambda) stop('The box-cox transformation requires specification of lambda')
 
   # Check: is lambda non-negative?
-  if(!is.null(lambda) && lambda < 0)
-    stop("The Box-Cox parameter (lambda) must be non-negative")
+  if (!is.null(lambda) && lambda < 0)
+    stop('The Box-Cox parameter (lambda) must be non-negative')
 
   # Use Box-Cox transformation for all transformations, as special case:
-  if(transformation == 'identity') lambda = 1
-  if(transformation == 'log') lambda = 0
-  if(transformation == 'sqrt') lambda = 1/2
+  if (transformation == 'identity') lambda = 1
+  if (transformation == 'log') lambda = 0
+  if (transformation == 'sqrt') lambda = 1/2
 
   # Transformation g:
   g = function(t, lambda) {
-    if(lambda == 0) {
+    if (lambda == 0) {
       return(log(t))
     } else {
       return((sign(t)*abs(t)^lambda - 1)/lambda)
@@ -120,7 +120,7 @@ star_EM = function(y,
   }
   # Inverse transformation g:
   ginv = function(s, lambda) {
-    if(lambda == 0) {
+    if (lambda == 0) {
       return(exp(s))
     } else {
       return(sign(lambda*s + 1)*abs(lambda*s+1)^(1/lambda))
@@ -133,11 +133,11 @@ star_EM = function(y,
     lambda = runif(n = 1)
 
     # Sequence for grid search:
-    lam_seq = seq(0.001, 1.2, length.out=100)
+    lam_seq = seq(0.001, 1.2, length.out = 100)
   }
 
   # Also define the rounding function and the corresponding intervals:
-  if(transformation == 'log' || lambda ==0){
+  if (transformation == 'log' || lambda == 0) {
     # For the log transformation (lambda = 0), g(-Inf) is not defined
     # Parametrize to use g(0) = log(0) = -Inf instead
     round_fun = function(z) pmin(floor(z), y_max)
@@ -186,14 +186,14 @@ star_EM = function(y,
   logLik_all = numeric(max_iters) # Log-likelihood
   lambda_all = numeric(max_iters) # Nonlinear parameter
 
-  for(s in 1:max_iters){
+  for (s in 1:max_iters) {
 
     # ----------------------------------
     ## E-step: impute the latent data
     # ----------------------------------
     # First and second moments of latent variables:
     z_mom = truncnorm_mom(a = z_lower, b = z_upper, mu = mu_hat, sig = sigma_hat)
-    z_hat = z_mom$m1; z2_hat= z_mom$m2;
+    z_hat = z_mom$m1; z2_hat = z_mom$m2;
 
     # ----------------------------------
     ## M-step: estimation
@@ -204,7 +204,7 @@ star_EM = function(y,
     sigma_hat = sqrt((sum(z2_hat) + sum(mu_hat^2) - 2*sum(z_hat*mu_hat))/n)
 
     # If estimating lambda:
-    if(estimate_lambda){
+    if (estimate_lambda) {
       # Grid search:
       lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc){
         -logLikeRcpp(g_a_j = g(a_y, l_bc),
@@ -239,9 +239,9 @@ star_EM = function(y,
   Jmax[Jmax > 2*max(y)] = 2*max(y) # To avoid excessive computation times, cap at 2*max(y)
   Jmaxmax = max(Jmax)
   y_hat = expectation_gRcpp(g_a_j = g(a_j(0:Jmaxmax), lambda),
-                                                       g_a_jp1 = g(a_j(1:(Jmaxmax + 1)), lambda),
-                                                       mu = mu_hat, sigma = rep(sigma_hat, n),
-                                                       Jmax = Jmax)
+                            g_a_jp1 = g(a_j(1:(Jmaxmax + 1)), lambda),
+                            mu = mu_hat, sigma = rep(sigma_hat, n),
+                            Jmax = Jmax)
   # Dunn-Smyth residuals:
   resids_ds = qnorm(runif(n)*(pnorm((z_upper - mu_hat)/sigma_hat) -
                                 pnorm((z_lower - mu_hat)/sigma_hat)) +
@@ -304,37 +304,37 @@ star_EM = function(y,
 #'
 #' @export
 star_EM_wls = function(y, X,
-                   transformation = 'log',
-                   lambda = NULL,
-                   y_max = Inf,
-                   weights = NULL,
-                   tol = 10^-10,
-                   max_iters = 1000){
+                       transformation = 'log',
+                       lambda = NULL,
+                       y_max = Inf,
+                       weights = NULL,
+                       tol = 10^-10,
+                       max_iters = 1000) {
 
   # Check: currently implemented for nonnegative integers
-  if(any(y < 0) || any(y != floor(y)))
+  if (any(y < 0) || any(y != floor(y)))
     stop('y must be nonnegative counts')
 
   # Check: y_max must be a true upper bound
-  if(any(y > y_max))
+  if (any(y > y_max))
     stop('y must not exceed y_max')
 
   # Check: does the transformation make sense?
   transformation = tolower(transformation);
-  if(is.na(match(transformation, c("identity", "log", "sqrt", "box-cox"))))
-    stop("The transformation must be one of 'identity', 'log', 'sqrt' or 'box-cox'")
+  if (is.na(match(transformation, c('identity', 'log', 'sqrt', 'box-cox'))))
+    stop('The transformation must be one of "identity", "log", "sqrt" or "box-cox"')
 
   # Check: does lambda need to be estimated?
   estimate_lambda = (transformation == 'box-cox' && is.null(lambda))
   #if(estimate_lambda) stop('The box-cox transformation requires specification of lambda')
 
   # Check: is lambda non-negative?
-  if(!is.null(lambda) && lambda < 0)
+  if (!is.null(lambda) && lambda < 0)
     stop("The Box-Cox parameter (lambda) must be non-negative")
 
   # Check: do the weights make sense?
-  if(is.null(weights)) weights = rep(1, length(y))
-  if(length(weights) != length(y) || any(weights <= 0))
+  if (is.null(weights)) weights = rep(1, length(y))
+  if (length(weights) != length(y) || any(weights <= 0))
     stop("Weights must be positive and the same length as the data vector y")
 
   # Remove any columns of constants in the design matrix:
@@ -344,13 +344,13 @@ star_EM_wls = function(y, X,
   estimator = function(y) lm(y ~ X, weights = weights)
 
   # Use Box-Cox transformation for all transformations, as special case:
-  if(transformation == 'identity') lambda = 1
-  if(transformation == 'log') lambda = 0
-  if(transformation == 'sqrt') lambda = 1/2
+  if (transformation == 'identity') lambda = 1
+  if (transformation == 'log') lambda = 0
+  if (transformation == 'sqrt') lambda = 1/2
 
   # Transformation g:
   g = function(t, lambda) {
-    if(lambda == 0) {
+    if (lambda == 0) {
       return(log(t))
     } else {
       return((sign(t)*abs(t)^lambda - 1)/lambda)
@@ -358,7 +358,7 @@ star_EM_wls = function(y, X,
   }
   # Inverse transformation g:
   ginv = function(s, lambda) {
-    if(lambda == 0) {
+    if (lambda == 0) {
       return(exp(s))
     } else {
       return(sign(lambda*s + 1)*abs(lambda*s+1)^(1/lambda))
@@ -371,11 +371,11 @@ star_EM_wls = function(y, X,
     lambda = runif(n = 1)
 
     # Sequence for grid search:
-    lam_seq = seq(0.001, 1.2, length.out=100)
+    lam_seq = seq(0.001, 1.2, length.out = 100)
   }
 
   # Also define the rounding function and the corresponding intervals:
-  if(transformation == 'log' || lambda ==0){
+  if (transformation == 'log' || lambda == 0) {
     # For the log transformation (lambda = 0), g(-Inf) is not defined
     # Parametrize to use g(0) = log(0) = -Inf instead
     round_fun = function(z) pmin(floor(z), y_max)
@@ -424,7 +424,7 @@ star_EM_wls = function(y, X,
   logLik_all = numeric(max_iters) # Log-likelihood
   lambda_all = numeric(max_iters) # Nonlinear parameter
 
-  for(s in 1:max_iters){
+  for (s in 1:max_iters) {
 
     # ----------------------------------
     ## E-step: impute the latent data
@@ -442,7 +442,7 @@ star_EM_wls = function(y, X,
     sigma_hat = sqrt((sum(z2_hat*weights) + sum(mu_hat^2*weights) - 2*sum(z_hat*mu_hat*weights))/n)
 
     # If estimating lambda:
-    if(estimate_lambda){
+    if (estimate_lambda) {
       # Grid search:
       lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc){
         -logLikeRcpp(g_a_j = g(a_y, l_bc),
@@ -582,44 +582,44 @@ star_EM_wls = function(y, X,
 #' @import randomForest
 #' @export
 randomForest_star = function(y, X, X.test = NULL,
-                             ntree=500,
-                             mtry= max(floor(ncol(X)/3), 1),
+                             ntree = 500,
+                             mtry = max(floor(ncol(X)/3), 1),
                              nodesize = 5,
                              transformation = 'log',
                              lambda = NULL,
                              y_max = Inf,
                              tol = 10^-6,
-                             max_iters = 500){
+                             max_iters = 500) {
 
   # Check: currently implemented for nonnegative integers
-  if(any(y < 0) || any(y != floor(y)))
+  if (any(y < 0) || any(y != floor(y)))
     stop('y must be nonnegative counts')
 
   # Check: y_max must be a true upper bound
-  if(any(y > y_max))
+  if (any(y > y_max))
     stop('y must not exceed y_max')
 
   # Check: does the transformation make sense?
   transformation = tolower(transformation);
-  if(is.na(match(transformation, c("identity", "log", "sqrt", "box-cox"))))
-    stop("The transformation must be one of 'identity', 'log', 'sqrt' or 'box-cox'")
+  if (is.na(match(transformation, c('identity', 'log', 'sqrt', 'box-cox'))))
+    stop('The transformation must be one of "identity", "log", "sqrt" or "box-cox"')
 
   # Check: does lambda need to be estimated?
   estimate_lambda = (transformation == 'box-cox' && is.null(lambda))
   #if(estimate_lambda) stop('The box-cox transformation requires specification of lambda')
 
   # Check: is lambda non-negative?
-  if(!is.null(lambda) && lambda < 0)
+  if (!is.null(lambda) && lambda < 0)
     stop("The Box-Cox parameter (lambda) must be non-negative")
 
   # Use Box-Cox transformation for all transformations, as special case:
-  if(transformation == 'identity') lambda = 1
-  if(transformation == 'log') lambda = 0
-  if(transformation == 'sqrt') lambda = 1/2
+  if (transformation == 'identity') lambda = 1
+  if (transformation == 'log') lambda = 0
+  if (transformation == 'sqrt') lambda = 1/2
 
   # Transformation g:
   g = function(t, lambda) {
-    if(lambda == 0) {
+    if (lambda == 0) {
       return(log(t))
     } else {
       return((sign(t)*abs(t)^lambda - 1)/lambda)
@@ -627,7 +627,7 @@ randomForest_star = function(y, X, X.test = NULL,
   }
   # Inverse transformation g:
   ginv = function(s, lambda) {
-    if(lambda == 0) {
+    if (lambda == 0) {
       return(exp(s))
     } else {
       return(sign(lambda*s + 1)*abs(lambda*s+1)^(1/lambda))
@@ -644,7 +644,7 @@ randomForest_star = function(y, X, X.test = NULL,
   }
 
   # Also define the rounding function and the corresponding intervals:
-  if(transformation == 'log' || lambda ==0){
+  if (transformation == 'log' || lambda == 0) {
     # For the log transformation (lambda = 0), g(-Inf) is not defined
     # Parametrize to use g(0) = log(0) = -Inf instead
     round_fun = function(z) pmin(floor(z), y_max)
@@ -683,7 +683,7 @@ randomForest_star = function(y, X, X.test = NULL,
   sigma_all = numeric(max_iters) # SD
   lambda_all = numeric(max_iters) # Nonlinear parameter
 
-  for(s in 1:max_iters){
+  for (s in 1:max_iters){
 
     # ----------------------------------
     ## E-step: impute the latent data
@@ -696,12 +696,12 @@ randomForest_star = function(y, X, X.test = NULL,
     ## M-step: estimation
     # ----------------------------------
     fit = randomForest(x = X, y = z_hat,
-                 ntree = ntree, mtry = mtry, nodesize = nodesize)
+                       ntree = ntree, mtry = mtry, nodesize = nodesize)
     mu_hat = fit$predicted
     sigma_hat = sqrt((sum(z2_hat) + sum(mu_hat^2) - 2*sum(z_hat*mu_hat))/n)
 
     # If estimating lambda:
-    if(estimate_lambda){
+    if (estimate_lambda) {
       lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc){
         -logLikeRcpp(g_a_j = g(a_y, l_bc),
                      g_a_jp1 = g(a_yp1, l_bc),
@@ -723,7 +723,7 @@ randomForest_star = function(y, X, X.test = NULL,
     mu_all[s,] = mu_hat; sigma_all[s] = sigma_hat; logLik_all[s] = logLik_em; zhat_all[s,] = z_hat; lambda_all[s] = lambda
 
     # Check whether to stop:
-    if((logLik_em - logLik_em0)^2 < tol) break
+    if ((logLik_em - logLik_em0)^2 < tol) break
     logLik_em0 = logLik_em
   }
   # Subset trajectory to the estimated values:
@@ -745,7 +745,7 @@ randomForest_star = function(y, X, X.test = NULL,
                       pnorm((z_lower - mu_hat)/sigma_hat))
 
   # Predictive quantities, if desired:
-  if(!is.null(X.test)){
+  if (!is.null(X.test)) {
     # Fitted values on transformed-scale at test points:
     mu.test = predict(fit, X.test)
 
@@ -801,6 +801,11 @@ randomForest_star = function(y, X, X.test = NULL,
 #' @param shrinkage a shrinkage parameter applied to each tree in the expansion.
 #' Also known as the learning rate or step-size reduction; 0.001 to 0.1 usually work, but a smaller learning rate typically requires more trees.
 #' Default is 0.1.
+#' @param n.minobsinnode Integer specifying the minimum number of observations in the terminal nodes of the trees. 
+#' Note that this is the actual number of observations, not the total weight.
+#' Default is 40.
+#' @param distribution Either a character string specifying the name of the distribution to use or a list with a component name specifying the distribution and any additional parameters needed.
+#' Default is "gaussian".
 #' @param bag.fraction the fraction of the training set observations randomly selected to propose the next tree in the expansion.
 #' This introduces randomnesses into the model fit. If bag.fraction < 1 then running the same model twice will result in similar but different fits.
 #' Default is 1 (for a deterministic prediction).
@@ -865,42 +870,44 @@ gbm_star = function(y, X, X.test = NULL,
                     n.trees = 100,
                     interaction.depth = 1,
                     shrinkage = 0.1,
+                    n.minobsinnode = 40,
+                    distribution = 'gaussian',
                     bag.fraction = 1,
                     transformation = 'log',
                     lambda = NULL,
                     y_max = Inf,
                     tol = 10^-6,
-                    max_iters = 500){
+                    max_iters = 500) {
 
   # Check: currently implemented for nonnegative integers
-  if(any(y < 0) || any(y != floor(y)))
+  if (any(y < 0) || any(y != floor(y)))
     stop('y must be nonnegative counts')
 
   # Check: y_max must be a true upper bound
-  if(any(y > y_max))
+  if (any(y > y_max))
     stop('y must not exceed y_max')
 
   # Check: does the transformation make sense?
   transformation = tolower(transformation);
-  if(is.na(match(transformation, c("identity", "log", "sqrt", "box-cox"))))
-    stop("The transformation must be one of 'identity', 'log', 'sqrt' or 'box-cox'")
+  if (is.na(match(transformation, c('identity', 'log', 'sqrt', 'box-cox'))))
+    stop('The transformation must be one of "identity", "log", "sqrt" or "box-cox"')
 
   # Check: does lambda need to be estimated?
   estimate_lambda = (transformation == 'box-cox' && is.null(lambda))
   #if(estimate_lambda) stop('The box-cox transformation requires specification of lambda')
 
   # Check: is lambda non-negative?
-  if(!is.null(lambda) && lambda < 0)
+  if (!is.null(lambda) && lambda < 0)
     stop("The Box-Cox parameter (lambda) must be non-negative")
 
   # Use Box-Cox transformation for all transformations, as special case:
-  if(transformation == 'identity') lambda = 1
-  if(transformation == 'log') lambda = 0
-  if(transformation == 'sqrt') lambda = 1/2
+  if (transformation == 'identity') lambda = 1
+  if (transformation == 'log') lambda = 0
+  if (transformation == 'sqrt') lambda = 1/2
 
   # Transformation g:
   g = function(t, lambda) {
-    if(lambda == 0) {
+    if (lambda == 0) {
       return(log(t))
     } else {
       return((sign(t)*abs(t)^lambda - 1)/lambda)
@@ -908,7 +915,7 @@ gbm_star = function(y, X, X.test = NULL,
   }
   # Inverse transformation g:
   ginv = function(s, lambda) {
-    if(lambda == 0) {
+    if (lambda == 0) {
       return(exp(s))
     } else {
       return(sign(lambda*s + 1)*abs(lambda*s+1)^(1/lambda))
@@ -925,7 +932,7 @@ gbm_star = function(y, X, X.test = NULL,
   }
 
   # Also define the rounding function and the corresponding intervals:
-  if(transformation == 'log' || lambda ==0){
+  if (transformation == 'log' || lambda == 0) {
     # For the log transformation (lambda = 0), g(-Inf) is not defined
     # Parametrize to use g(0) = log(0) = -Inf instead
     round_fun = function(z) pmin(floor(z), y_max)
@@ -941,10 +948,11 @@ gbm_star = function(y, X, X.test = NULL,
   # Initialize the parameters: add 1 in case of zeros
   z_hat = g(y + 1, lambda = lambda)
   fit = gbm(y ~ ., data = data.frame(y = z_hat, X = X),
-            distribution = "gaussian", # Squared error loss
             n.trees = n.trees,
             interaction.depth = interaction.depth,
             shrinkage = shrinkage,
+            n.minobsinnode = n.minobsinnode,
+            distribution = distribution,
             bag.fraction = bag.fraction
   )
 
@@ -969,7 +977,7 @@ gbm_star = function(y, X, X.test = NULL,
   sigma_all = numeric(max_iters) # SD
   lambda_all = numeric(max_iters) # Nonlinear parameter
 
-  for(s in 1:max_iters){
+  for (s in 1:max_iters) {
 
     # ----------------------------------
     ## E-step: impute the latent data
@@ -982,17 +990,18 @@ gbm_star = function(y, X, X.test = NULL,
     ## M-step: estimation
     # ----------------------------------
     fit = gbm(y ~ ., data = data.frame(y = z_hat, X = X),
-              distribution = "gaussian", # Squared error loss
               n.trees = n.trees,
               interaction.depth = interaction.depth,
               shrinkage = shrinkage,
+              n.minobsinnode = n.minobsinnode,
+              distribution = distribution,
               bag.fraction = bag.fraction
     )
     mu_hat = fit$fit
     sigma_hat = sqrt((sum(z2_hat) + sum(mu_hat^2) - 2*sum(z_hat*mu_hat))/n)
 
     # If estimating lambda:
-    if(estimate_lambda){
+    if (estimate_lambda) {
       lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc){
         -logLikeRcpp(g_a_j = g(a_y, l_bc),
                      g_a_jp1 = g(a_yp1, l_bc),
@@ -1004,6 +1013,14 @@ gbm_star = function(y, X, X.test = NULL,
       z_upper = g(a_yp1, lambda = lambda)
     }
 
+    i = 0
+    while (!is.finite(max(abs(z_hat)))) {
+      print(paste('Error', s, sigma_hat, i))
+      sigma_hat = 2 * sigma_hat
+      z_mom = truncnorm_mom(a = z_lower, b = z_upper, mu = mu_hat, sig = sigma_hat)
+      z_hat = z_mom$m1; z2_hat = z_mom$m2;
+      i = i + 1
+    }
 
     # Update log-likelihood:
     logLik_em = logLikeRcpp(g_a_j = z_lower,
@@ -1015,7 +1032,7 @@ gbm_star = function(y, X, X.test = NULL,
     mu_all[s,] = mu_hat; sigma_all[s] = sigma_hat; logLik_all[s] = logLik_em; zhat_all[s,] = z_hat; lambda_all[s] = lambda
 
     # Check whether to stop:
-    if((logLik_em - logLik_em0)^2 < tol) break
+    if ((logLik_em - logLik_em0)^2 < tol) break
     logLik_em0 = logLik_em
   }
   # Subset trajectory to the estimated values:
@@ -1037,10 +1054,9 @@ gbm_star = function(y, X, X.test = NULL,
                       pnorm((z_lower - mu_hat)/sigma_hat))
 
   # Predictive quantities, if desired:
-  if(!is.null(X.test)){
+  if (!is.null(X.test)) {
     # Fitted values on transformed-scale at test points:
-    mu.test = predict(fit, data.frame(X = X.test), n.trees = n.trees)
-
+    mu.test = predict(fit, data.frame(X = X.test), n.trees = n.trees, type = 'response')
     # Conditional expectation at test points:
     Jmax = ceiling(round_fun(ginv(
       qnorm(0.9999, mean = mu.test, sd = sigma_hat), lambda = lambda)))
@@ -1123,14 +1139,14 @@ gbm_star = function(y, X, X.test = NULL,
 star_CI = function(y, X, j,
                    alpha = 0.05, include_plot = TRUE,
                    transformation = 'log', lambda = NULL, y_max = Inf,
-                   tol = 10^-10, max_iters = 1000){
+                   tol = 10^-10, max_iters = 1000) {
 
   # Check: intercept?
-  if(!any(apply(X, 2, function(x) all(x==1))))
+  if (!any(apply(X, 2, function(x) all(x == 1))))
     warning('X does not contain an intercept')
 
   # Fit the usual EM algorithm:
-    # Note: model checks are done in star_EM()
+  # Note: model checks are done in star_EM()
   fit_em = star_EM(y = y,
                    estimator = function(y) lm(y ~ X-1),
                    transformation = transformation, lambda = lambda, y_max = y_max)
@@ -1139,13 +1155,13 @@ star_CI = function(y, X, j,
   lambda = fit_em$lambda
 
   # Use Box-Cox transformation for all transformations, as special case:
-  if(transformation == 'identity') lambda = 1
-  if(transformation == 'log') lambda = 0
-  if(transformation == 'sqrt') lambda = 1/2
+  if (transformation == 'identity') lambda = 1
+  if (transformation == 'log') lambda = 0
+  if (transformation == 'sqrt') lambda = 1/2
 
   # Transformation g:
   g = function(t, lambda) {
-    if(lambda == 0) {
+    if (lambda == 0) {
       return(log(t))
     } else {
       return((sign(t)*abs(t)^lambda - 1)/lambda)
@@ -1153,7 +1169,7 @@ star_CI = function(y, X, j,
   }
   # Inverse transformation g:
   ginv = function(s, lambda) {
-    if(lambda == 0) {
+    if (lambda == 0) {
       return(exp(s))
     } else {
       return(sign(lambda*s + 1)*abs(lambda*s+1)^(1/lambda))
@@ -1161,7 +1177,7 @@ star_CI = function(y, X, j,
   }
 
   # Also define the rounding function and the corresponding intervals:
-  if(transformation == 'log' || lambda ==0){
+  if (transformation == 'log' || lambda == 0) {
     # For the log transformation (lambda = 0), g(-Inf) is not defined
     # Parametrize to use g(0) = log(0) = -Inf instead
     round_fun = function(z) pmin(floor(z), y_max)
@@ -1198,7 +1214,7 @@ star_CI = function(y, X, j,
   prof.logLik = numeric(n_coarse)
 
   # Note: could call the EM algorithm directly, but this does not allow for a "warm start"
-  #prof.logLik = sapply(theta_seq_coarse, function(theta_j){
+  #prof.logLik = sapply(theta_seq_coarse, function(theta_j) {
   #  star_EM(y = y, estimator = function(y) lm(y ~ -1 + X[,-j] + offset(theta_j*X[,j])),
   #          transformation = fit_em$transformation, lambda = fit_em$lambda)$logLik
   #})
@@ -1207,12 +1223,12 @@ star_CI = function(y, X, j,
   conf_thresh = fit_em$logLik - qchisq(alpha, df = 1, lower.tail = FALSE)/2
 
   ng = 1;
-  while(ng <= n_coarse){
+  while (ng <= n_coarse) {
 
     # theta_j is fixed:
     theta_j = theta_seq_coarse[ng]
 
-    for(s in 1:max_iters){
+    for (s in 1:max_iters) {
       # Estimation (with the jth coefficient fixed at theta_j)
       fit = lm(z_hat ~ -1 + X[,-j] + offset(theta_j*X[,j]))
       mu_hat = fit$fitted.values
@@ -1223,7 +1239,7 @@ star_CI = function(y, X, j,
       z_hat = z_mom$m1; z2_hat= z_mom$m2;
 
       # Check whether to stop:
-      if(mean((mu_hat - mu_hat0)^2) < tol) break
+      if (mean((mu_hat - mu_hat0)^2) < tol) break
       mu_hat0 = mu_hat
     }
 
@@ -1233,15 +1249,15 @@ star_CI = function(y, X, j,
                                   sigma = rep(sigma_hat,n))
 
     # Check at the final iteration:
-    if(ng == n_coarse){
+    if (ng == n_coarse) {
       # Bad lower endpoint:
-      if(prof.logLik[which.min(theta_seq_coarse)] >= conf_thresh - 5){
+      if (prof.logLik[which.min(theta_seq_coarse)] >= conf_thresh - 5) {
         # Expand theta downward:
         theta_seq_coarse = c(theta_seq_coarse,
                              min(theta_seq_coarse) - 2*median(abs(diff(theta_seq_coarse))))
       }
       # Bad upper endpoint:
-      if(prof.logLik[which.max(theta_seq_coarse)] >= conf_thresh - 5){
+      if (prof.logLik[which.max(theta_seq_coarse)] >= conf_thresh - 5) {
         # Expand theta upward:
         theta_seq_coarse = c(theta_seq_coarse,
                              max(theta_seq_coarse) + 2*median(abs(diff(theta_seq_coarse))))
@@ -1264,7 +1280,7 @@ star_CI = function(y, X, j,
   ci_all = theta_seq_fine[prof.logLik_hat > conf_thresh]
 
   # Summary plot:
-  if(include_plot){
+  if (include_plot) {
     plot(theta_seq_coarse, prof.logLik, type='n', xlab = expression(theta[j]), main = paste('Profile Likelihood, j =',j));
     abline(v = ci_all, lwd=4, col='gray');
     lines(theta_seq_coarse, prof.logLik, type='p')
@@ -1324,7 +1340,7 @@ star_CI = function(y, X, j,
 #'
 #'
 #' @export
-star_intervals = function(PI_z, fit_star){
+star_intervals = function(PI_z, fit_star) {
 
   # Sample size:
   n = length(fit_star$mu.hat)
@@ -1333,7 +1349,7 @@ star_intervals = function(PI_z, fit_star){
 
   # Transformation g:
   g = function(t, lambda) {
-    if(lambda == 0) {
+    if (lambda == 0) {
       return(log(t))
     } else {
       return((sign(t)*abs(t)^lambda - 1)/lambda)
@@ -1341,7 +1357,7 @@ star_intervals = function(PI_z, fit_star){
   }
   # Inverse transformation g:
   ginv = function(s, lambda) {
-    if(lambda == 0) {
+    if (lambda == 0) {
       return(exp(s))
     } else {
       return(sign(lambda*s + 1)*abs(lambda*s+1)^(1/lambda))
@@ -1349,7 +1365,7 @@ star_intervals = function(PI_z, fit_star){
   }
 
   # Also define the rounding function and the corresponding intervals:
-  if(fit_star$lambda ==0){
+  if (fit_star$lambda == 0) {
     # For the log transformation (lambda = 0), g(-Inf) is not defined
     # Parametrize to use g(0) = log(0) = -Inf instead
     round_fun = function(z) pmin(floor(z), fit_star$y_max)
@@ -1418,19 +1434,19 @@ star_pred_dist = function(y, X, X.test = NULL,
                           y_max = Inf,
                           tol = 10^-10,
                           max_iters = 1000,
-                          N = 1000){
+                          N = 1000) {
 
   # Sample size:
   n = length(y)
 
   # If no test set, use the original design points:
-  if(is.null(X.test)) X.test = X
+  if (is.null(X.test)) X.test = X
 
   # Number of test points:
   m = nrow(X.test)
 
   # Check:
-  if(ncol(X.test) != ncol(X))
+  if (ncol(X.test) != ncol(X))
     stop('X.test must have the same (number of) predictors as X')
 
   # Number of predictors:
@@ -1445,7 +1461,7 @@ star_pred_dist = function(y, X, X.test = NULL,
 
   # Transformation g:
   g = function(t, lambda) {
-    if(lambda == 0) {
+    if (lambda == 0) {
       return(log(t))
     } else {
       return((sign(t)*abs(t)^lambda - 1)/lambda)
@@ -1453,7 +1469,7 @@ star_pred_dist = function(y, X, X.test = NULL,
   }
   # Inverse transformation g:
   ginv = function(s, lambda) {
-    if(lambda == 0) {
+    if (lambda == 0) {
       return(exp(s))
     } else {
       return(sign(lambda*s + 1)*abs(lambda*s+1)^(1/lambda))
@@ -1461,7 +1477,7 @@ star_pred_dist = function(y, X, X.test = NULL,
   }
 
   # Also define the rounding function and the corresponding intervals:
-  if(fit_star$lambda ==0){
+  if (fit_star$lambda == 0) {
     # For the log transformation (lambda = 0), g(-Inf) is not defined
     # Parametrize to use g(0) = log(0) = -Inf instead
     round_fun = function(z) pmin(floor(z), fit_star$y_max)
@@ -1479,7 +1495,7 @@ star_pred_dist = function(y, X, X.test = NULL,
   XtXinv = chol2inv(chol(crossprod(X)))
   cholS0 = chol(diag(m) + tcrossprod(X.test%*%XtXinv, X.test))
 
-  for(nsi in 1:N){
+  for (nsi in 1:N) {
     # sample [z* | y]
     z_star_s = rtruncnormRcpp(y_lower = g(a_y, lambda = fit_star$lambda),
                               y_upper = g(a_yp1, lambda = fit_star$lambda),
@@ -1520,7 +1536,7 @@ star_pred_dist = function(y, X, X.test = NULL,
 #'
 #' @importFrom stats dnorm pnorm
 #' @export
-truncnorm_mom = function(a, b, mu, sig){
+truncnorm_mom = function(a, b, mu, sig) {
   # Standardize the bounds:
   a_std = (a - mu)/sig; b_std = (b - mu)/sig
 
@@ -1541,4 +1557,308 @@ truncnorm_mom = function(a, b, mu, sig){
 
   # Return:
   list(m1 = m1, m2 = m2)
+}
+
+
+
+#' EM Algorithm for Different Models STAR
+#'
+#' Compute the MLEs and log-likelihood for the Different Models STAR model. The STAR model requires
+#' a transformation (such as log, sqrt, or Box-Cox) and will estimate the conditional mean
+#' on the transformed scale using a model that works with the standard function "predict". Standard function calls
+#' including \code{fitted()} and \code{residuals()} apply.
+#'
+#' @param y \code{n x 1} vector of observed counts
+#' @param X \code{n x p} matrix of predictors
+#' @param X.test \code{m x p} matrix of out-of-sample predictors
+#' @param estimator a function that inputs data \code{X, y} and outputs an object that can be used with the function \code{predict(estimator, X.test)}
+#' @param transformation transformation to use for the latent process; must be one of
+#' \itemize{
+#' \item "identity" (identity transformation)
+#' \item "log" (log transformation)
+#' \item "sqrt" (square root transformation)
+#' \item "box-cox" (box-cox transformation)
+#' }
+#' @param lambda the nonlinear parameter for the Box-Cox transformation; otherwise ignored
+#' @param y_max a fixed and known upper bound for all observations; default is \code{Inf}
+#' @param tol tolerance for stopping the EM algorithm; default is 10^-10;
+#' @param max_iters maximum number of EM iterations before stopping; default is 1000
+#'
+#' @return a list with the following elements:
+#' \itemize{
+#' \item \code{fitted.values}: the fitted values at the MLEs based on out-of-bag samples (training)
+#' \item \code{fitted.values.test}: the fitted values at the MLEs (testing)
+#' \item \code{sigma.hat}: the MLE of the standard deviation
+#' \item \code{mu.hat}: the MLE of the conditional mean (on the transformed scale)
+#' \item \code{z.hat}: the estimated latent variables (on the transformed scale) at the MLEs
+#' \item \code{residuals}: the Dunn-Smyth residuals
+#' \item \code{logLik}: the log-likelihood at the MLEs
+#' \item \code{logLik0} the log-likelihood at the MLEs for the *unrounded* initialization
+#' \item \code{modelObj}: the object returned by estimator() at the MLEs
+#' \item and other parameters that
+#' (i) track the parameters across EM iterations and
+#' (ii) record the model specifications
+#' }
+#' 
+#' @details For the Box-Cox transformation, a \code{NULL} value of
+#' \code{lambda} requires estimation of \code{lambda}. The maximum likelihood
+#' estimator is computed over a grid of values within the EM algorithm.
+#'
+#' The fitted values are computed using out-of-bag samples. As a result,
+#' the log-likelihood is based on out-of-bag prediction, and it is similarly
+#' straightforward to compute out-of-bag squared and absolute errors.
+#'
+#'
+#'
+#' @examples
+#' \dontrun{
+#' # Simulate data with count-valued response y:
+#' sim_dat = simulate_nb_friedman(n = 100, p = 10)
+#' y = sim_dat$y; X = sim_dat$X
+#'
+#' # EM algorithm for STAR (using the log-link)
+#' regressor = function(X, y) lm(y ~ ., data.frame(y = y, X))
+#' fit_em = star_EM_models(y = y, X = X,
+#'                         estimator = regressor, 
+#'                         transformation = 'log', 
+#'                         max_iters = 100)
+#' 
+#' # Fitted values
+#' y_hat = fit_em$fitted.values
+#' plot(y_hat, y);
+#'
+#' # Residuals:
+#' plot(residuals(fit_em))
+#' qqnorm(residuals(fit_em)); qqline(residuals(fit_em))
+#'
+#' # Log-likelihood at MLEs:
+#' fit_em$logLik
+#' }
+#'
+#' @export
+star_EM_models = function(y, X, X.test = NULL,
+                          estimator,
+                          transformation = 'log',
+                          lambda = NULL,
+                          y_max = Inf,
+                          tol = 10^-10,
+                          max_iters = 1000) {
+
+  # Check: currently implemented for nonnegative integers
+  if (any(y < 0) || any(y != floor(y)))
+    stop('y must be nonnegative counts')
+
+  # Check: y_max must be a true upper bound
+  if (any(y > y_max))
+    stop('y must not exceed y_max')
+
+  # Check: does the transformation make sense?
+  transformation = tolower(transformation);
+  if (is.na(match(transformation, c('identity', 'log', 'sqrt', 'box-cox'))))
+    stop('The transformation must be one of "identity", "log", "sqrt" or "box-cox"')
+
+  # Check: does lambda need to be estimated?
+  estimate_lambda = (transformation == 'box-cox' && is.null(lambda))
+  #if(estimate_lambda) stop('The box-cox transformation requires specification of lambda')
+
+  # Check: is lambda non-negative?
+  if (!is.null(lambda) && lambda < 0)
+    stop('The Box-Cox parameter (lambda) must be non-negative')
+
+  # Use Box-Cox transformation for all transformations, as special case:
+  if (transformation == 'identity') lambda = 1
+  if (transformation == 'log') lambda = 0
+  if (transformation == 'sqrt') lambda = 1/2
+
+  # Transformation g:
+  g = function(t, lambda) {
+    if (lambda == 0) {
+      return(log(t))
+    } else {
+      return((sign(t)*abs(t)^lambda - 1)/lambda)
+    }
+  }
+  # Inverse transformation g:
+  ginv = function(s, lambda) {
+    if (lambda == 0) {
+      return(exp(s))
+    } else {
+      return(sign(lambda*s + 1)*abs(lambda*s+1)^(1/lambda))
+    }
+  }
+
+  # Random initialization for the lambda, if estimated:
+  if(estimate_lambda) {
+    # Initialize on (0,1)
+    lambda = runif(n = 1)
+
+    # Sequence for grid search:
+    lam_seq = seq(0.001, 1.2, length.out = 100)
+  }
+
+  # Also define the rounding function and the corresponding intervals:
+  if (transformation == 'log' || lambda == 0) {
+    # For the log transformation (lambda = 0), g(-Inf) is not defined
+    # Parametrize to use g(0) = log(0) = -Inf instead
+    round_fun = function(z) pmin(floor(z), y_max)
+    a_j = function(j) {val = j; val[j == y_max + 1] = Inf; val}
+  } else {
+    round_fun = function(z) pmin(floor(z)*I(z > 0), y_max)
+    a_j = function(j) {val = j; val[j == 0] = -Inf; val[j == y_max + 1] = Inf; val}
+  }
+
+  # Number of observations:
+  n = length(y)
+
+  # Initialize the parameters: add 1 in case of zeros
+  z_hat = g(y + 1, lambda = lambda)
+  fit = estimator(X, z_hat)
+
+  # # Check: does the estimator make sense?
+  # if(is.null(fit$fitted.values) || is.null(fit$coefficients))
+  #   stop("The estimator() function must return 'fitted.values' and 'coefficients'")
+
+  # (Initial) Fitted values:
+  mu_hat = predict(fit, X) # fit$fitted.values
+
+  # # (Initial) Coefficients:
+  # theta_hat = fit$coefficients
+
+  # (Initial) observation SD:
+  sigma_hat = sd(z_hat - mu_hat)
+
+  # (Initial) log-likelihood:
+  logLik0 = logLik_em0 =
+    (lambda - 1)*sum(log(y+1)) + sum(dnorm(z_hat, mean = mu_hat, sd = sigma_hat, log = TRUE))
+
+  # # Number of parameters (excluding sigma)
+  # p = length(theta_hat)
+
+  # Lower and upper intervals:
+  a_y = a_j(y); a_yp1 = a_j(y + 1)
+  z_lower = g(a_y, lambda = lambda);
+  z_upper = g(a_yp1, lambda = lambda)
+
+  # Store the EM trajectories:
+  mu_all = zhat_all = array(0, c(max_iters, n))
+  # theta_all = array(0, c(max_iters, p)) # Parameters (coefficients)
+  sigma_all = numeric(max_iters) # SD
+  logLik_all = numeric(max_iters) # Log-likelihood
+  lambda_all = numeric(max_iters) # Nonlinear parameter
+
+  for (s in 1:max_iters) {
+
+    # ----------------------------------
+    ## E-step: impute the latent data
+    # ----------------------------------
+    # First and second moments of latent variables:
+    z_mom = truncnorm_mom(a = z_lower, b = z_upper, mu = mu_hat, sig = sigma_hat)
+    z_hat = z_mom$m1; z2_hat= z_mom$m2;
+
+    i = 0
+    while (!is.finite(max(abs(z_hat)))) {
+      print(paste('Error', s, sigma_hat, i))
+      sigma_hat = 1.8 * sigma_hat
+      z_mom = truncnorm_mom(a = z_lower, b = z_upper, mu = mu_hat, sig = sigma_hat)
+      z_hat = z_mom$m1; z2_hat = z_mom$m2;
+      i = i + 1
+    }
+    # print(range(z_hat))
+
+    # ----------------------------------
+    ## M-step: estimation
+    # ----------------------------------
+    fit = estimator(X, z_hat)
+    mu_hat = predict(fit, X) # fit$fitted.values
+    # theta_hat = fit$coefficients
+    sigma_hat = sqrt((sum(z2_hat) + sum(mu_hat^2) - 2*sum(z_hat*mu_hat))/n)
+    # print(range(mu_hat))
+    # print(sigma_hat)
+
+    # If estimating lambda:
+    if(estimate_lambda){
+      # Grid search:
+      lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc){
+        -logLikeRcpp(g_a_j = g(a_y, l_bc),
+                     g_a_jp1 = g(a_yp1, l_bc),
+                     mu = mu_hat,
+                     sigma = rep(sigma_hat, n))}))]
+
+      # Next, update the lower and upper limits:
+      z_lower = g(a_y, lambda = lambda);
+      z_upper = g(a_yp1, lambda = lambda)
+    }
+
+    # Update log-likelihood:
+    logLik_em = logLikeRcpp(g_a_j = z_lower,
+                            g_a_jp1 = z_upper,
+                            mu = mu_hat,
+                            sigma = rep(sigma_hat, n))
+
+    # Storage:
+    # theta_all[s,] = theta_hat
+    mu_all[s,] = mu_hat; sigma_all[s] = sigma_hat; logLik_all[s] = logLik_em; zhat_all[s,] = z_hat; lambda_all[s] = lambda
+
+    # Check whether to stop:
+    if(is.finite(logLik_em) && is.finite(logLik_em0) && (logLik_em - logLik_em0)^2 < tol) break
+    logLik_em0 = logLik_em
+
+  }
+
+  # Subset trajectory to the estimated values:
+  # theta_all = theta_all[1:s,]
+  mu_all = mu_all[1:s,]; logLik_all = logLik_all[1:s]; sigma_all = sigma_all[1:s]; zhat_all = zhat_all[1:s,]; lambda_all = lambda_all[1:s]
+
+  # Also the expected value (fitted values):
+  Jmax = ceiling(round_fun(ginv(
+    qnorm(0.9999, mean = mu_hat, sd = sigma_hat), lambda = lambda)))
+  Jmax[Jmax > 2*max(y)] = 2*max(y) # To avoid excessive computation times, cap at 2*max(y)
+  Jmaxmax = max(Jmax)
+  y_hat = expectation_gRcpp(g_a_j = g(a_j(0:Jmaxmax), lambda),
+                            g_a_jp1 = g(a_j(1:(Jmaxmax + 1)), lambda),
+                            mu = mu_hat, sigma = rep(sigma_hat, n),
+                            Jmax = Jmax)
+
+  # Dunn-Smyth residuals:
+  resids_ds = qnorm(runif(n)*(pnorm((z_upper - mu_hat)/sigma_hat) -
+                                pnorm((z_lower - mu_hat)/sigma_hat)) +
+                      pnorm((z_lower - mu_hat)/sigma_hat))
+
+  # Predictive quantities, if desired:
+  if (!is.null(X.test)) {
+    # Fitted values on transformed-scale at test points:
+    mu.test = predict(fit, X.test)
+
+    # Conditional expectation at test points:
+    Jmax = ceiling(round_fun(ginv(
+      qnorm(0.9999, mean = mu.test, sd = sigma_hat), lambda = lambda)))
+    Jmax[Jmax > 2*max(y)] = 2*max(y) # To avoid excessive computation times, cap at 2*max(y)
+    Jmaxmax = max(Jmax)
+    fitted.values.test = expectation_gRcpp(g_a_j = g(a_j(0:Jmaxmax), lambda),
+                                           g_a_jp1 = g(a_j(1:(Jmaxmax + 1)), lambda),
+                                           mu = mu.test, sigma = rep(sigma_hat, n),
+                                           Jmax = Jmax)
+
+    # Simulate 1000 values at the test points:
+    # cond.pred.test = t(sapply(1:1000, function(j)
+    #   round_fun(ginv(rnorm(n = nrow(X.test), mean = mu.test, sd = sigma_hat),
+    #                  lambda = lambda))))
+
+  } else {
+    fitted.values.test = cond.pred.test = NULL
+  }
+
+  # Return:
+  list(fitted.values = y_hat,
+       fitted.values.test = fitted.values.test,
+       sigma.hat = sigma_hat,
+       mu.hat = mu_hat,
+       z.hat = z_hat,
+       residuals = resids_ds,
+       logLik = logLik_em,
+       logLik0 = logLik0,
+       modelObj = fit,
+       # theta_all = theta_all,
+       mu_all = mu_all, logLik_all = logLik_all, sigma_all = sigma_all, zhat_all = zhat_all, lambda_all = lambda_all, # EM trajectory
+       transformation = transformation, lambda = lambda, y_max = y_max, tol = tol, max_iters = max_iters) # And return the info about the model as well
 }
