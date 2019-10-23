@@ -227,7 +227,7 @@ star_EM = function(y,
     mu_all[s,] = mu_hat; theta_all[s,] = theta_hat; sigma_all[s] = sigma_hat; logLik_all[s] = logLik_em; zhat_all[s,] = z_hat; lambda_all[s] = lambda
 
     # Check whether to stop:
-    if((logLik_em - logLik_em0)^2 < tol) break
+    if(is.finite(logLik_em) && is.finite(logLik_em0) && (logLik_em - logLik_em0)^2 < tol) break
     logLik_em0 = logLik_em
   }
   # Subset trajectory to the estimated values:
@@ -801,7 +801,7 @@ randomForest_star = function(y, X, X.test = NULL,
 #' @param shrinkage a shrinkage parameter applied to each tree in the expansion.
 #' Also known as the learning rate or step-size reduction; 0.001 to 0.1 usually work, but a smaller learning rate typically requires more trees.
 #' Default is 0.1.
-#' @param n.minobsinnode Integer specifying the minimum number of observations in the terminal nodes of the trees. 
+#' @param n.minobsinnode Integer specifying the minimum number of observations in the terminal nodes of the trees.
 #' Note that this is the actual number of observations, not the total weight.
 #' Default is 40.
 #' @param distribution Either a character string specifying the name of the distribution to use or a list with a component name specifying the distribution and any additional parameters needed.
@@ -1013,14 +1013,14 @@ gbm_star = function(y, X, X.test = NULL,
       z_upper = g(a_yp1, lambda = lambda)
     }
 
-    i = 0
-    while (!is.finite(max(abs(z_hat)))) {
-      print(paste('Error', s, sigma_hat, i))
-      sigma_hat = 2 * sigma_hat
-      z_mom = truncnorm_mom(a = z_lower, b = z_upper, mu = mu_hat, sig = sigma_hat)
-      z_hat = z_mom$m1; z2_hat = z_mom$m2;
-      i = i + 1
-    }
+    # i = 0
+    # while (!is.finite(max(abs(z_hat)))) {
+    #   print(paste('Error', s, sigma_hat, i))
+    #   sigma_hat = 2 * sigma_hat
+    #   z_mom = truncnorm_mom(a = z_lower, b = z_upper, mu = mu_hat, sig = sigma_hat)
+    #   z_hat = z_mom$m1; z2_hat = z_mom$m2;
+    #   i = i + 1
+    # }
 
     # Update log-likelihood:
     logLik_em = logLikeRcpp(g_a_j = z_lower,
@@ -1032,7 +1032,7 @@ gbm_star = function(y, X, X.test = NULL,
     mu_all[s,] = mu_hat; sigma_all[s] = sigma_hat; logLik_all[s] = logLik_em; zhat_all[s,] = z_hat; lambda_all[s] = lambda
 
     # Check whether to stop:
-    if ((logLik_em - logLik_em0)^2 < tol) break
+    if(is.finite(logLik_em) && is.finite(logLik_em0) && (logLik_em - logLik_em0)^2 < tol) break
     logLik_em0 = logLik_em
   }
   # Subset trajectory to the estimated values:
@@ -1599,7 +1599,7 @@ truncnorm_mom = function(a, b, mu, sig) {
 #' (i) track the parameters across EM iterations and
 #' (ii) record the model specifications
 #' }
-#' 
+#'
 #' @details For the Box-Cox transformation, a \code{NULL} value of
 #' \code{lambda} requires estimation of \code{lambda}. The maximum likelihood
 #' estimator is computed over a grid of values within the EM algorithm.
@@ -1619,10 +1619,10 @@ truncnorm_mom = function(a, b, mu, sig) {
 #' # EM algorithm for STAR (using the log-link)
 #' regressor = function(X, y) lm(y ~ ., data.frame(y = y, X))
 #' fit_em = star_EM_models(y = y, X = X,
-#'                         estimator = regressor, 
-#'                         transformation = 'log', 
+#'                         estimator = regressor,
+#'                         transformation = 'log',
 #'                         max_iters = 100)
-#' 
+#'
 #' # Fitted values
 #' y_hat = fit_em$fitted.values
 #' plot(y_hat, y);
@@ -1755,14 +1755,14 @@ star_EM_models = function(y, X, X.test = NULL,
     z_mom = truncnorm_mom(a = z_lower, b = z_upper, mu = mu_hat, sig = sigma_hat)
     z_hat = z_mom$m1; z2_hat= z_mom$m2;
 
-    i = 0
-    while (!is.finite(max(abs(z_hat)))) {
-      print(paste('Error', s, sigma_hat, i))
-      sigma_hat = 1.8 * sigma_hat
-      z_mom = truncnorm_mom(a = z_lower, b = z_upper, mu = mu_hat, sig = sigma_hat)
-      z_hat = z_mom$m1; z2_hat = z_mom$m2;
-      i = i + 1
-    }
+    # i = 0
+    # while (!is.finite(max(abs(z_hat)))) {
+    #   print(paste('Error', s, sigma_hat, i))
+    #   sigma_hat = 1.8 * sigma_hat
+    #   z_mom = truncnorm_mom(a = z_lower, b = z_upper, mu = mu_hat, sig = sigma_hat)
+    #   z_hat = z_mom$m1; z2_hat = z_mom$m2;
+    #   i = i + 1
+    # }
     # print(range(z_hat))
 
     # ----------------------------------
