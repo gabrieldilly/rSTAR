@@ -21,9 +21,10 @@
 #' }
 #' @param lambda the nonlinear parameter for the Box-Cox transformation; otherwise ignored
 #' @param y_max a fixed and known upper bound for all observations; default is \code{Inf}
+#' @param sd_init add random noise for initialization scaled by \code{sd_init}
+#' times the Gaussian MLE standard deviation
 #' @param tol tolerance for stopping the EM algorithm; default is 10^-10;
 #' @param max_iters maximum number of EM iterations before stopping; default is 1000
-#'
 #' @return a list with the following elements:
 #' \itemize{
 #' \item \code{coefficients} the MLEs of the coefficients
@@ -43,6 +44,13 @@
 #' \code{lambda} requires estimation of \code{lambda}. The maximum likelihood
 #' estimator is computed over a grid of values within the EM algorithm.
 #'
+#' @note Infinite latent data values may occur when the transformed
+#' Gaussian model is highly inadequate. In that case, the function returns
+#' the *indices* of the data points with infinite latent values, which are
+#' significant outliers under the model. Deletion of these indices and
+#' re-running the model is one option, but care must be taken to ensure
+#' that (i) it is appropriate to treat these observations as outliers and
+#' (ii) the model is adequate for the remaining data points.
 #'
 #' @examples
 #' # Simulate data with count-valued response y:
@@ -81,6 +89,7 @@ star_EM = function(y,
                    transformation = 'log',
                    lambda = NULL,
                    y_max = Inf,
+                   sd_init = 10,
                    tol = 10^-10,
                    max_iters = 1000) {
 
@@ -99,7 +108,7 @@ star_EM = function(y,
 
   # Check: does lambda need to be estimated?
   estimate_lambda = (transformation == 'box-cox' && is.null(lambda))
-  #if(estimate_lambda) stop('The box-cox transformation requires specification of lambda')
+  #if (estimate_lambda) stop('The box-cox transformation requires specification of lambda')
 
   # Check: is lambda non-negative?
   if (!is.null(lambda) && lambda < 0)
@@ -128,7 +137,7 @@ star_EM = function(y,
   }
 
   # Random initialization for the lambda, if estimated:
-  if(estimate_lambda) {
+  if (estimate_lambda) {
     # Initialize on (0,1)
     lambda = runif(n = 1)
 
@@ -155,7 +164,7 @@ star_EM = function(y,
   fit = estimator(z_hat);
 
   # Check: does the estimator make sense?
-  if(is.null(fit$fitted.values) || is.null(fit$coefficients))
+  if (is.null(fit$fitted.values) || is.null(fit$coefficients))
     stop("The estimator() function must return 'fitted.values' and 'coefficients'")
 
   # (Initial) Fitted values:
@@ -170,6 +179,15 @@ star_EM = function(y,
   # (Initial) log-likelihood:
   logLik0 = logLik_em0 =
     (lambda - 1)*sum(log(y+1)) + sum(dnorm(z_hat, mean = mu_hat, sd = sigma_hat, log = TRUE))
+
+  # Randomize for EM initialization:
+  if (sd_init > 0) {
+    z_hat = g(y + 1, lambda = lambda) + sd_init*sigma_hat*rnorm(n = n)
+    fit = estimator(z_hat);
+    mu_hat = fit$fitted.values;
+    theta_hat = fit$coefficients;
+    sigma_hat = sd(z_hat - mu_hat)
+  }
 
   # Number of parameters (excluding sigma)
   p = length(theta_hat)
@@ -195,6 +213,11 @@ star_EM = function(y,
     z_mom = truncnorm_mom(a = z_lower, b = z_upper, mu = mu_hat, sig = sigma_hat)
     z_hat = z_mom$m1; z2_hat = z_mom$m2;
 
+    # Check: if any infinite z_hat values, return these indices and stop
+    if (any(is.infinite(z_hat))) {
+      warning('Infinite z_hat values: returning the problematic indices')
+      return(list(error_inds = which(is.infinite(z_hat))))
+    }
     # ----------------------------------
     ## M-step: estimation
     # ----------------------------------
@@ -206,7 +229,7 @@ star_EM = function(y,
     # If estimating lambda:
     if (estimate_lambda) {
       # Grid search:
-      lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc){
+      lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc) {
         -logLikeRcpp(g_a_j = g(a_y, l_bc),
                      g_a_jp1 = g(a_yp1, l_bc),
                      mu = mu_hat,
@@ -227,7 +250,7 @@ star_EM = function(y,
     mu_all[s,] = mu_hat; theta_all[s,] = theta_hat; sigma_all[s] = sigma_hat; logLik_all[s] = logLik_em; zhat_all[s,] = z_hat; lambda_all[s] = lambda
 
     # Check whether to stop:
-    if(is.finite(logLik_em) && is.finite(logLik_em0) && (logLik_em - logLik_em0)^2 < tol) break
+    if (is.finite(logLik_em) && is.finite(logLik_em0) && (logLik_em - logLik_em0)^2 < tol) break
     logLik_em0 = logLik_em
   }
   # Subset trajectory to the estimated values:
@@ -279,6 +302,8 @@ star_EM = function(y,
 #' @param y_max a fixed and known upper bound for all observations; default is \code{Inf}
 #' @param weights an optional vector of weights to be used in the fitting process, which
 #' produces weighted least squares estimators.
+#' @param sd_init add random noise for initialization scaled by \code{sd_init}
+#' times the Gaussian MLE standard deviation
 #' @param tol tolerance for stopping the EM algorithm; default is 10^-10;
 #' @param max_iters maximum number of EM iterations before stopping; default is 1000
 #'
@@ -302,12 +327,21 @@ star_EM = function(y,
 #' \code{lambda} requires estimation of \code{lambda}. The maximum likelihood
 #' estimator is computed over a grid of values within the EM algorithm.
 #'
+#' @note Infinite latent data values may occur when the transformed
+#' Gaussian model is highly inadequate. In that case, the function returns
+#' the *indices* of the data points with infinite latent values, which are
+#' significant outliers under the model. Deletion of these indices and
+#' re-running the model is one option, but care must be taken to ensure
+#' that (i) it is appropriate to treat these observations as outliers and
+#' (ii) the model is adequate for the remaining data points.
+#'
 #' @export
 star_EM_wls = function(y, X,
                        transformation = 'log',
                        lambda = NULL,
                        y_max = Inf,
                        weights = NULL,
+                       sd_init = 10,
                        tol = 10^-10,
                        max_iters = 1000) {
 
@@ -326,7 +360,7 @@ star_EM_wls = function(y, X,
 
   # Check: does lambda need to be estimated?
   estimate_lambda = (transformation == 'box-cox' && is.null(lambda))
-  #if(estimate_lambda) stop('The box-cox transformation requires specification of lambda')
+  #if (estimate_lambda) stop('The box-cox transformation requires specification of lambda')
 
   # Check: is lambda non-negative?
   if (!is.null(lambda) && lambda < 0)
@@ -366,7 +400,7 @@ star_EM_wls = function(y, X,
   }
 
   # Random initialization for the lambda, if estimated:
-  if(estimate_lambda) {
+  if (estimate_lambda) {
     # Initialize on (0,1)
     lambda = runif(n = 1)
 
@@ -393,7 +427,7 @@ star_EM_wls = function(y, X,
   fit = estimator(z_hat);
 
   # Check: does the estimator make sense?
-  if(is.null(fit$fitted.values) || is.null(fit$coefficients))
+  if (is.null(fit$fitted.values) || is.null(fit$coefficients))
     stop("The estimator() function must return 'fitted.values' and 'coefficients'")
 
   # (Initial) Fitted values:
@@ -408,6 +442,15 @@ star_EM_wls = function(y, X,
   # (Initial) log-likelihood:
   logLik0 = logLik_em0 =
     (lambda - 1)*sum(log(y+1)) + sum(dnorm(z_hat, mean = mu_hat, sd = sigma_hat/sqrt(weights), log = TRUE))
+
+  # Randomize for EM initialization:
+  if (sd_init > 0) {
+    z_hat = g(y + 1, lambda = lambda) + sd_init*sigma_hat*rnorm(n = n)
+    fit = estimator(z_hat);
+    mu_hat = fit$fitted.values;
+    theta_hat = fit$coefficients;
+    sigma_hat = sd(z_hat - mu_hat)
+  }
 
   # Number of parameters (excluding sigma)
   p = length(theta_hat)
@@ -433,6 +476,11 @@ star_EM_wls = function(y, X,
     z_mom = truncnorm_mom(a = z_lower, b = z_upper, mu = mu_hat, sig = sigma_hat/sqrt(weights))
     z_hat = z_mom$m1; z2_hat= z_mom$m2;
 
+    # Check: if any infinite z_hat values, return these indices and stop
+    if (any(is.infinite(z_hat))) {
+      warning('Infinite z_hat values: returning the problematic indices')
+      return(list(error_inds = which(is.infinite(z_hat))))
+    }
     # ----------------------------------
     ## M-step: estimation
     # ----------------------------------
@@ -444,7 +492,7 @@ star_EM_wls = function(y, X,
     # If estimating lambda:
     if (estimate_lambda) {
       # Grid search:
-      lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc){
+      lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc) {
         -logLikeRcpp(g_a_j = g(a_y, l_bc),
                      g_a_jp1 = g(a_yp1, l_bc),
                      mu = mu_hat,
@@ -465,7 +513,7 @@ star_EM_wls = function(y, X,
     mu_all[s,] = mu_hat; theta_all[s,] = theta_hat; sigma_all[s] = sigma_hat; logLik_all[s] = logLik_em; zhat_all[s,] = z_hat; lambda_all[s] = lambda
 
     # Check whether to stop:
-    if((logLik_em - logLik_em0)^2 < tol) break
+    if ((logLik_em - logLik_em0)^2 < tol) break
     logLik_em0 = logLik_em
 
   }
@@ -525,6 +573,8 @@ star_EM_wls = function(y, X,
 #' }
 #' @param lambda the nonlinear parameter for the Box-Cox transformation; otherwise ignored
 #' @param y_max a fixed and known upper bound for all observations; default is \code{Inf}
+#' @param sd_init add random noise for initialization scaled by \code{sd_init}
+#' times the Gaussian MLE standard deviation
 #' @param tol tolerance for stopping the EM algorithm; default is 10^-10;
 #' @param max_iters maximum number of EM iterations before stopping; default is 1000
 #'
@@ -554,6 +604,14 @@ star_EM_wls = function(y, X,
 #'
 #' @note Since the random foreset produces random predictions, the EM algorithm
 #' will never converge exactly.
+#'
+#' @note Infinite latent data values may occur when the transformed
+#' Gaussian model is highly inadequate. In that case, the function returns
+#' the *indices* of the data points with infinite latent values, which are
+#' significant outliers under the model. Deletion of these indices and
+#' re-running the model is one option, but care must be taken to ensure
+#' that (i) it is appropriate to treat these observations as outliers and
+#' (ii) the model is adequate for the remaining data points.
 #'
 #'
 #' @examples
@@ -588,6 +646,7 @@ randomForest_star = function(y, X, X.test = NULL,
                              transformation = 'log',
                              lambda = NULL,
                              y_max = Inf,
+                             sd_init = 10,
                              tol = 10^-6,
                              max_iters = 500) {
 
@@ -606,7 +665,7 @@ randomForest_star = function(y, X, X.test = NULL,
 
   # Check: does lambda need to be estimated?
   estimate_lambda = (transformation == 'box-cox' && is.null(lambda))
-  #if(estimate_lambda) stop('The box-cox transformation requires specification of lambda')
+  #if (estimate_lambda) stop('The box-cox transformation requires specification of lambda')
 
   # Check: is lambda non-negative?
   if (!is.null(lambda) && lambda < 0)
@@ -635,7 +694,7 @@ randomForest_star = function(y, X, X.test = NULL,
   }
 
   # Random initialization for the lambda, if estimated:
-  if(estimate_lambda) {
+  if (estimate_lambda) {
     # Initialize on (0,1)
     lambda = runif(n = 1)
 
@@ -672,6 +731,13 @@ randomForest_star = function(y, X, X.test = NULL,
   logLik0 = logLik_em0 =
     (lambda - 1)*sum(log(y+1)) + sum(dnorm(z_hat, mean = mu_hat, sd = sigma_hat, log = TRUE))
 
+  # Randomize for EM initialization:
+  if (sd_init > 0) {
+    z_hat = g(y + 1, lambda = lambda) + sd_init*sigma_hat*rnorm(n = n)
+    fit = estimator(z_hat);
+    mu_hat = fit$fitted.values; sigma_hat = sd(z_hat - mu_hat)
+  }
+
   # Lower and upper intervals:
   a_y = a_j(y); a_yp1 = a_j(y + 1)
   z_lower = g(a_y, lambda = lambda);
@@ -683,7 +749,7 @@ randomForest_star = function(y, X, X.test = NULL,
   sigma_all = numeric(max_iters) # SD
   lambda_all = numeric(max_iters) # Nonlinear parameter
 
-  for (s in 1:max_iters){
+  for (s in 1:max_iters) {
 
     # ----------------------------------
     ## E-step: impute the latent data
@@ -692,6 +758,11 @@ randomForest_star = function(y, X, X.test = NULL,
     z_mom = truncnorm_mom(a = z_lower, b = z_upper, mu = mu_hat, sig = sigma_hat)
     z_hat = z_mom$m1; z2_hat= z_mom$m2;
 
+    # Check: if any infinite z_hat values, return these indices and stop
+    if (any(is.infinite(z_hat))) {
+      warning('Infinite z_hat values: returning the problematic indices')
+      return(list(error_inds = which(is.infinite(z_hat))))
+    }
     # ----------------------------------
     ## M-step: estimation
     # ----------------------------------
@@ -702,7 +773,7 @@ randomForest_star = function(y, X, X.test = NULL,
 
     # If estimating lambda:
     if (estimate_lambda) {
-      lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc){
+      lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc) {
         -logLikeRcpp(g_a_j = g(a_y, l_bc),
                      g_a_jp1 = g(a_yp1, l_bc),
                      mu = mu_hat,
@@ -818,6 +889,8 @@ randomForest_star = function(y, X, X.test = NULL,
 #' }
 #' @param lambda the nonlinear parameter for the Box-Cox transformation; otherwise ignored
 #' @param y_max a fixed and known upper bound for all observations; default is \code{Inf}
+#' @param sd_init add random noise for initialization scaled by \code{sd_init}
+#' times the Gaussian MLE standard deviation
 #' @param tol tolerance for stopping the EM algorithm; default is 10^-10;
 #' @param max_iters maximum number of EM iterations before stopping; default is 1000
 #'
@@ -837,9 +910,18 @@ randomForest_star = function(y, X, X.test = NULL,
 #' (i) track the parameters across EM iterations and
 #' (ii) record the model specifications
 #' }
+#'
 #' @note For the Box-Cox transformation, a \code{NULL} value of
 #' \code{lambda} requires estimation of \code{lambda}. The maximum likelihood
 #' estimator is computed over a grid of values within the EM algorithm.
+#'
+#' @note Infinite latent data values may occur when the transformed
+#' Gaussian model is highly inadequate. In that case, the function returns
+#' the *indices* of the data points with infinite latent values, which are
+#' significant outliers under the model. Deletion of these indices and
+#' re-running the model is one option, but care must be taken to ensure
+#' that (i) it is appropriate to treat these observations as outliers and
+#' (ii) the model is adequate for the remaining data points.
 #'
 #' @examples
 #' # Simulate data with count-valued response y:
@@ -876,6 +958,7 @@ gbm_star = function(y, X, X.test = NULL,
                     transformation = 'log',
                     lambda = NULL,
                     y_max = Inf,
+                    sd_init = 10,
                     tol = 10^-6,
                     max_iters = 500) {
 
@@ -894,7 +977,7 @@ gbm_star = function(y, X, X.test = NULL,
 
   # Check: does lambda need to be estimated?
   estimate_lambda = (transformation == 'box-cox' && is.null(lambda))
-  #if(estimate_lambda) stop('The box-cox transformation requires specification of lambda')
+  #if (estimate_lambda) stop('The box-cox transformation requires specification of lambda')
 
   # Check: is lambda non-negative?
   if (!is.null(lambda) && lambda < 0)
@@ -923,7 +1006,7 @@ gbm_star = function(y, X, X.test = NULL,
   }
 
   # Random initialization for the lambda, if estimated:
-  if(estimate_lambda) {
+  if (estimate_lambda) {
     # Initialize on (0,1)
     lambda = runif(n = 1)
 
@@ -966,6 +1049,13 @@ gbm_star = function(y, X, X.test = NULL,
   logLik0 = logLik_em0 =
     (lambda - 1)*sum(log(y+1)) + sum(dnorm(z_hat, mean = mu_hat, sd = sigma_hat, log = TRUE))
 
+  # Randomize for EM initialization:
+  if (sd_init > 0) {
+    z_hat = g(y + 1, lambda = lambda) + sd_init*sigma_hat*rnorm(n = n)
+    fit = estimator(z_hat);
+    mu_hat = fit$fitted.values; sigma_hat = sd(z_hat - mu_hat)
+  }
+
   # Lower and upper intervals:
   a_y = a_j(y); a_yp1 = a_j(y + 1)
   z_lower = g(a_y, lambda = lambda);
@@ -986,6 +1076,11 @@ gbm_star = function(y, X, X.test = NULL,
     z_mom = truncnorm_mom(a = z_lower, b = z_upper, mu = mu_hat, sig = sigma_hat)
     z_hat = z_mom$m1; z2_hat= z_mom$m2;
 
+    # Check: if any infinite z_hat values, return these indices and stop
+    if (any(is.infinite(z_hat))) {
+      warning('Infinite z_hat values: returning the problematic indices')
+      return(list(error_inds = which(is.infinite(z_hat))))
+    }
     # ----------------------------------
     ## M-step: estimation
     # ----------------------------------
@@ -1002,7 +1097,7 @@ gbm_star = function(y, X, X.test = NULL,
 
     # If estimating lambda:
     if (estimate_lambda) {
-      lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc){
+      lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc) {
         -logLikeRcpp(g_a_j = g(a_y, l_bc),
                      g_a_jp1 = g(a_yp1, l_bc),
                      mu = mu_hat,
@@ -1032,7 +1127,7 @@ gbm_star = function(y, X, X.test = NULL,
     mu_all[s,] = mu_hat; sigma_all[s] = sigma_hat; logLik_all[s] = logLik_em; zhat_all[s,] = z_hat; lambda_all[s] = lambda
 
     # Check whether to stop:
-    if(is.finite(logLik_em) && is.finite(logLik_em0) && (logLik_em - logLik_em0)^2 < tol) break
+    if (is.finite(logLik_em) && is.finite(logLik_em0) && (logLik_em - logLik_em0)^2 < tol) break
     logLik_em0 = logLik_em
   }
   # Subset trajectory to the estimated values:
@@ -1111,6 +1206,8 @@ gbm_star = function(y, X, X.test = NULL,
 #' }
 #' @param lambda the nonlinear parameter for the Box-Cox transformation; otherwise ignored
 #' @param y_max a fixed and known upper bound for all observations; default is \code{Inf}
+#' @param sd_init add random noise for initialization scaled by \code{sd_init}
+#' times the Gaussian MLE standard deviation
 #' @param tol tolerance for stopping the EM algorithm; default is 10^-10;
 #' @param max_iters maximum number of EM iterations before stopping; default is 1000
 #' @return the upper and lower endpoints of the confidence interval
@@ -1139,7 +1236,7 @@ gbm_star = function(y, X, X.test = NULL,
 star_CI = function(y, X, j,
                    alpha = 0.05, include_plot = TRUE,
                    transformation = 'log', lambda = NULL, y_max = Inf,
-                   tol = 10^-10, max_iters = 1000) {
+                   sd_init = 10, tol = 10^-10, max_iters = 1000) {
 
   # Check: intercept?
   if (!any(apply(X, 2, function(x) all(x == 1))))
@@ -1402,6 +1499,8 @@ star_intervals = function(PI_z, fit_star) {
 #' }
 #' @param lambda the nonlinear parameter for the Box-Cox transformation; otherwise ignored
 #' @param y_max a fixed and known upper bound for all observations; default is \code{Inf}
+#' @param sd_init add random noise for initialization scaled by \code{sd_init}
+#' times the Gaussian MLE standard deviation
 #' @param tol tolerance for stopping the EM algorithm; default is 10^-10;
 #' @param max_iters maximum number of EM iterations before stopping; default is 1000
 #' @param N number of Monte Carlo samples from the posterior predictive distribution
@@ -1432,6 +1531,7 @@ star_pred_dist = function(y, X, X.test = NULL,
                           transformation = 'log',
                           lambda = NULL,
                           y_max = Inf,
+                          sd_init = 10,
                           tol = 10^-10,
                           max_iters = 1000,
                           N = 1000) {
@@ -1455,7 +1555,7 @@ star_pred_dist = function(y, X, X.test = NULL,
   # Define the estimating equation and run the lm:
   fit_star = star_EM(y = y,
                      estimator = function(y) lm(y ~ X - 1),
-                     transformation = transformation, lambda = lambda, y_max = y_max, tol = tol, max_iters = max_iters)
+                     transformation = transformation, lambda = lambda, y_max = y_max, sd_init = sd_init, tol = tol, max_iters = max_iters)
 
   # Define the transformation and rounding functions locally:
 
@@ -1581,9 +1681,9 @@ truncnorm_mom = function(a, b, mu, sig) {
 #' }
 #' @param lambda the nonlinear parameter for the Box-Cox transformation; otherwise ignored
 #' @param y_max a fixed and known upper bound for all observations; default is \code{Inf}
+#' @param sd_init add random noise for initialization scaled by \code{sd_init} times the Gaussian MLE standard deviation
 #' @param tol tolerance for stopping the EM algorithm; default is 10^-10;
 #' @param max_iters maximum number of EM iterations before stopping; default is 1000
-#'
 #' @return a list with the following elements:
 #' \itemize{
 #' \item \code{fitted.values}: the fitted values at the MLEs based on out-of-bag samples (training)
@@ -1608,7 +1708,13 @@ truncnorm_mom = function(a, b, mu, sig) {
 #' the log-likelihood is based on out-of-bag prediction, and it is similarly
 #' straightforward to compute out-of-bag squared and absolute errors.
 #'
-#'
+#' @note Infinite latent data values may occur when the transformed
+#' Gaussian model is highly inadequate. In that case, the function returns
+#' the *indices* of the data points with infinite latent values, which are
+#' significant outliers under the model. Deletion of these indices and
+#' re-running the model is one option, but care must be taken to ensure
+#' that (i) it is appropriate to treat these observations as outliers and
+#' (ii) the model is adequate for the remaining data points.
 #'
 #' @examples
 #' \dontrun{
@@ -1641,6 +1747,7 @@ star_EM_models = function(y, X, X.test = NULL,
                           transformation = 'log',
                           lambda = NULL,
                           y_max = Inf,
+                          sd_init = 10,
                           tol = 10^-10,
                           max_iters = 1000) {
 
@@ -1659,7 +1766,7 @@ star_EM_models = function(y, X, X.test = NULL,
 
   # Check: does lambda need to be estimated?
   estimate_lambda = (transformation == 'box-cox' && is.null(lambda))
-  #if(estimate_lambda) stop('The box-cox transformation requires specification of lambda')
+  #if (estimate_lambda) stop('The box-cox transformation requires specification of lambda')
 
   # Check: is lambda non-negative?
   if (!is.null(lambda) && lambda < 0)
@@ -1688,7 +1795,7 @@ star_EM_models = function(y, X, X.test = NULL,
   }
 
   # Random initialization for the lambda, if estimated:
-  if(estimate_lambda) {
+  if (estimate_lambda) {
     # Initialize on (0,1)
     lambda = runif(n = 1)
 
@@ -1715,7 +1822,7 @@ star_EM_models = function(y, X, X.test = NULL,
   fit = estimator(X, z_hat)
 
   # # Check: does the estimator make sense?
-  # if(is.null(fit$fitted.values) || is.null(fit$coefficients))
+  # if (is.null(fit$fitted.values) || is.null(fit$coefficients))
   #   stop("The estimator() function must return 'fitted.values' and 'coefficients'")
 
   # (Initial) Fitted values:
@@ -1730,6 +1837,15 @@ star_EM_models = function(y, X, X.test = NULL,
   # (Initial) log-likelihood:
   logLik0 = logLik_em0 =
     (lambda - 1)*sum(log(y+1)) + sum(dnorm(z_hat, mean = mu_hat, sd = sigma_hat, log = TRUE))
+
+  # Randomize for EM initialization:
+  if (sd_init > 0) {
+    z_hat = g(y + 1, lambda = lambda) + sd_init*sigma_hat*rnorm(n = n)
+    fit = estimator(z_hat);
+    mu_hat = fit$fitted.values;
+    theta_hat = fit$coefficients;
+    sigma_hat = sd(z_hat - mu_hat)
+  }
 
   # # Number of parameters (excluding sigma)
   # p = length(theta_hat)
@@ -1765,6 +1881,11 @@ star_EM_models = function(y, X, X.test = NULL,
     # }
     # print(range(z_hat))
 
+    # Check: if any infinite z_hat values, return these indices and stop
+    if (any(is.infinite(z_hat))) {
+      warning('Infinite z_hat values: returning the problematic indices')
+      return(list(error_inds = which(is.infinite(z_hat))))
+    }
     # ----------------------------------
     ## M-step: estimation
     # ----------------------------------
@@ -1776,9 +1897,9 @@ star_EM_models = function(y, X, X.test = NULL,
     # print(sigma_hat)
 
     # If estimating lambda:
-    if(estimate_lambda){
+    if (estimate_lambda) {
       # Grid search:
-      lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc){
+      lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc) {
         -logLikeRcpp(g_a_j = g(a_y, l_bc),
                      g_a_jp1 = g(a_yp1, l_bc),
                      mu = mu_hat,
@@ -1800,7 +1921,7 @@ star_EM_models = function(y, X, X.test = NULL,
     mu_all[s,] = mu_hat; sigma_all[s] = sigma_hat; logLik_all[s] = logLik_em; zhat_all[s,] = z_hat; lambda_all[s] = lambda
 
     # Check whether to stop:
-    if(is.finite(logLik_em) && is.finite(logLik_em0) && (logLik_em - logLik_em0)^2 < tol) break
+    if (is.finite(logLik_em) && is.finite(logLik_em0) && (logLik_em - logLik_em0)^2 < tol) break
     logLik_em0 = logLik_em
 
   }
