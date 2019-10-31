@@ -279,6 +279,7 @@ star_EM = function(y,
        residuals = resids_ds,
        logLik = logLik_em,
        logLik0 = logLik0,
+       last_iter = s,
        mu_all = mu_all, theta_all = theta_all, sigma_all = sigma_all, logLik_all = logLik_all, zhat_all = zhat_all, lambda_all = lambda_all, # EM trajectory
        transformation = transformation, lambda = lambda, y_max = y_max, tol = tol, max_iters = max_iters) # And return the info about the model as well
 }
@@ -849,6 +850,7 @@ randomForest_star = function(y, X, X.test = NULL,
        logLik = logLik_em,
        logLik0 = logLik0,
        rfObj = fit,
+       last_iter = s,
        mu_all = mu_all, logLik_all = logLik_all, sigma_all = sigma_all, zhat_all = zhat_all, lambda_all = lambda_all, # EM trajectory
        transformation = transformation, lambda = lambda, y_max = y_max, tol = tol, max_iters = max_iters) # And return the info about the model as well
 }
@@ -1052,8 +1054,16 @@ gbm_star = function(y, X, X.test = NULL,
   # Randomize for EM initialization:
   if (sd_init > 0) {
     z_hat = g(y + 1, lambda = lambda) + sd_init*sigma_hat*rnorm(n = n)
-    fit = estimator(z_hat);
-    mu_hat = fit$fitted.values; sigma_hat = sd(z_hat - mu_hat)
+    fit = gbm(y ~ ., data = data.frame(y = z_hat, X = X),
+              n.trees = n.trees,
+              interaction.depth = interaction.depth,
+              shrinkage = shrinkage,
+              n.minobsinnode = n.minobsinnode,
+              distribution = distribution,
+              bag.fraction = bag.fraction
+    )
+    mu_hat = fit$fit
+    sigma_hat = sd(z_hat - mu_hat)
   }
 
   # Lower and upper intervals:
@@ -1182,6 +1192,7 @@ gbm_star = function(y, X, X.test = NULL,
        logLik0 = logLik0,
        cond.pred.test = cond.pred.test,
        gbmObj = fit,
+       last_iter = s,
        mu_all = mu_all, logLik_all = logLik_all, sigma_all = sigma_all, zhat_all = zhat_all, lambda_all = lambda_all, # EM trajectory
        transformation = transformation, lambda = lambda, y_max = y_max, tol = tol, max_iters = max_iters) # And return the info about the model as well
 }
@@ -1768,9 +1779,9 @@ star_EM_models = function(y, X, X.test = NULL,
   estimate_lambda = (transformation == 'box-cox' && is.null(lambda))
   #if (estimate_lambda) stop('The box-cox transformation requires specification of lambda')
 
-  # Check: is lambda non-negative?
-  if (!is.null(lambda) && lambda < 0)
-    stop('The Box-Cox parameter (lambda) must be non-negative')
+  # # Check: is lambda non-negative?
+  # if (!is.null(lambda) && lambda < 0)
+  #   stop('The Box-Cox parameter (lambda) must be non-negative')
 
   # Use Box-Cox transformation for all transformations, as special case:
   if (transformation == 'identity') lambda = 1
@@ -1841,9 +1852,9 @@ star_EM_models = function(y, X, X.test = NULL,
   # Randomize for EM initialization:
   if (sd_init > 0) {
     z_hat = g(y + 1, lambda = lambda) + sd_init*sigma_hat*rnorm(n = n)
-    fit = estimator(z_hat);
-    mu_hat = fit$fitted.values;
-    theta_hat = fit$coefficients;
+    fit = estimator(X, z_hat)
+    mu_hat = predict(fit, X) # fit$fitted.values
+    # theta_hat = fit$coefficients
     sigma_hat = sd(z_hat - mu_hat)
   }
 
@@ -1979,6 +1990,7 @@ star_EM_models = function(y, X, X.test = NULL,
        logLik = logLik_em,
        logLik0 = logLik0,
        modelObj = fit,
+       last_iter = s,
        # theta_all = theta_all,
        mu_all = mu_all, logLik_all = logLik_all, sigma_all = sigma_all, zhat_all = zhat_all, lambda_all = lambda_all, # EM trajectory
        transformation = transformation, lambda = lambda, y_max = y_max, tol = tol, max_iters = max_iters) # And return the info about the model as well
