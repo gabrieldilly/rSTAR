@@ -214,9 +214,9 @@ star_EM = function(y,
     z_hat = z_mom$m1; z2_hat = z_mom$m2;
 
     # Check: if any infinite z_hat values, return these indices and stop
-    if (any(is.infinite(z_hat))) {
+    if (any(is.infinite(z_hat)) || any(is.na(z_hat))) {
       warning('Infinite z_hat values: returning the problematic indices')
-      return(list(error_inds = which(is.infinite(z_hat))))
+      return(list(error_inds = which(is.infinite(z_hat) | is.na(z_hat))))
     }
     # ----------------------------------
     ## M-step: estimation
@@ -279,7 +279,6 @@ star_EM = function(y,
        residuals = resids_ds,
        logLik = logLik_em,
        logLik0 = logLik0,
-       last_iter = s,
        mu_all = mu_all, theta_all = theta_all, sigma_all = sigma_all, logLik_all = logLik_all, zhat_all = zhat_all, lambda_all = lambda_all, # EM trajectory
        transformation = transformation, lambda = lambda, y_max = y_max, tol = tol, max_iters = max_iters) # And return the info about the model as well
 }
@@ -478,9 +477,9 @@ star_EM_wls = function(y, X,
     z_hat = z_mom$m1; z2_hat= z_mom$m2;
 
     # Check: if any infinite z_hat values, return these indices and stop
-    if (any(is.infinite(z_hat))) {
+    if (any(is.infinite(z_hat)) || any(is.na(z_hat))) {
       warning('Infinite z_hat values: returning the problematic indices')
-      return(list(error_inds = which(is.infinite(z_hat))))
+      return(list(error_inds = which(is.infinite(z_hat) | is.na(z_hat))))
     }
     # ----------------------------------
     ## M-step: estimation
@@ -760,9 +759,9 @@ randomForest_star = function(y, X, X.test = NULL,
     z_hat = z_mom$m1; z2_hat= z_mom$m2;
 
     # Check: if any infinite z_hat values, return these indices and stop
-    if (any(is.infinite(z_hat))) {
+    if (any(is.infinite(z_hat)) || any(is.na(z_hat))) {
       warning('Infinite z_hat values: returning the problematic indices')
-      return(list(error_inds = which(is.infinite(z_hat))))
+      return(list(error_inds = which(is.infinite(z_hat) | is.na(z_hat))))
     }
     # ----------------------------------
     ## M-step: estimation
@@ -850,7 +849,6 @@ randomForest_star = function(y, X, X.test = NULL,
        logLik = logLik_em,
        logLik0 = logLik0,
        rfObj = fit,
-       last_iter = s,
        mu_all = mu_all, logLik_all = logLik_all, sigma_all = sigma_all, zhat_all = zhat_all, lambda_all = lambda_all, # EM trajectory
        transformation = transformation, lambda = lambda, y_max = y_max, tol = tol, max_iters = max_iters) # And return the info about the model as well
 }
@@ -950,7 +948,7 @@ randomForest_star = function(y, X, X.test = NULL,
 #'
 #' @import gbm
 #' @export
-gbm_star = function(y, X, X.test = NULL,
+gbm_star = function(y, X, X.test = NULL, y.test = NULL,
                     n.trees = 100,
                     interaction.depth = 1,
                     shrinkage = 0.1,
@@ -1011,10 +1009,14 @@ gbm_star = function(y, X, X.test = NULL,
   if (estimate_lambda) {
     # Initialize on (0,1)
     lambda = runif(n = 1)
+    # lambda = 0.5
+    # print(lambda)
 
     # Sequence for grid search:
-    lam_seq = seq(0.001, 1.2, length.out=100)
+    # lam_seq = seq(0.001, 1.2, length.out = 100)
   }
+
+  lambda_init = lambda
 
   # Also define the rounding function and the corresponding intervals:
   if (transformation == 'log' || lambda == 0) {
@@ -1079,7 +1081,6 @@ gbm_star = function(y, X, X.test = NULL,
 
   for (s in 1:max_iters) {
 
-    # ----------------------------------
     ## E-step: impute the latent data
     # ----------------------------------
     # First and second moments of latent variables:
@@ -1087,9 +1088,9 @@ gbm_star = function(y, X, X.test = NULL,
     z_hat = z_mom$m1; z2_hat= z_mom$m2;
 
     # Check: if any infinite z_hat values, return these indices and stop
-    if (any(is.infinite(z_hat))) {
+    if (any(is.infinite(z_hat)) || any(is.na(z_hat))) {
       warning('Infinite z_hat values: returning the problematic indices')
-      return(list(error_inds = which(is.infinite(z_hat))))
+      return(list(error_inds = which(is.infinite(z_hat) | is.na(z_hat))))
     }
     # ----------------------------------
     ## M-step: estimation
@@ -1107,11 +1108,51 @@ gbm_star = function(y, X, X.test = NULL,
 
     # If estimating lambda:
     if (estimate_lambda) {
+
+      decimals = 8
+      size = 2
+
+      # xx = c()
+      # yy = c()
+
+      lam_seq = seq(1e-8, 1.0, length.out = 2 * size + 1)
+
+      for (p in 1:decimals) {
+        lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc) {
+          -logLikeRcpp(g_a_j = g(a_y, l_bc),
+                       g_a_jp1 = g(a_yp1, l_bc),
+                       mu = mu_hat,
+                       sigma = rep(sigma_hat, n))}))]
+        step = lam_seq[2] - lam_seq[1]
+        if (lambda - step < 0) lambda = step + 1e-8
+        lam_seq = seq(lambda - step, lambda + step, length.out = 2 * size + 1)
+
+        # xx = c(xx, lambda)
+        # yy = c(yy, logLikeRcpp(g_a_j = g(a_y, lambda),
+        #                        g_a_jp1 = g(a_yp1, lambda),
+        #                        mu = mu_hat,
+        #                        sigma = rep(sigma_hat, n)))
+
+      }
+
+      # Grid search:
       lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc) {
         -logLikeRcpp(g_a_j = g(a_y, l_bc),
                      g_a_jp1 = g(a_yp1, l_bc),
                      mu = mu_hat,
                      sigma = rep(sigma_hat, n))}))]
+
+      # xx = c(xx, lambda)
+      # yy = c(yy, logLikeRcpp(g_a_j = g(a_y, lambda),
+      #                        g_a_jp1 = g(a_yp1, lambda),
+      #                        mu = mu_hat,
+      #                        sigma = rep(sigma_hat, n)))
+      #
+      # plot(xx, yy, xlog = TRUE)
+      # lines(xx, yy, type = 'b')
+      #
+      # plot(xx, yy, xlim = c(0, 1), ylim = c(logLik0, logLik0 * 0.80))
+      # lines(xx, yy, type = 'b')
 
       # Next, update the lower and upper limits:
       z_lower = g(a_y, lambda = lambda);
@@ -1172,13 +1213,19 @@ gbm_star = function(y, X, X.test = NULL,
                                            mu = mu.test, sigma = rep(sigma_hat, n),
                                            Jmax = Jmax)
 
+    a_y_test = a_j(y.test); a_yp1_test = a_j(y.test + 1)
+    z_lower_test = g(a_y_test, lambda = lambda);
+    z_upper_test = g(a_yp1_test, lambda = lambda)
+
+    log_score = sum(logLikeRcpp(g_a_j = z_lower_test, g_a_jp1 = z_upper_test, mu = mu.test, sigma = rep(sigma_hat, length(y_test))))
+
     # Simulate 1000 values at the test points:
     cond.pred.test = t(sapply(1:1000, function(j)
       round_fun(ginv(rnorm(n = nrow(X.test), mean = mu.test, sd = sigma_hat),
                      lambda = lambda))))
 
   } else {
-    fitted.values.test = cond.pred.test = NULL
+    fitted.values.test = cond.pred.test = log_score = NULL
   }
 
   # Return:
@@ -1190,9 +1237,10 @@ gbm_star = function(y, X, X.test = NULL,
        residuals = resids_ds,
        logLik = logLik_em,
        logLik0 = logLik0,
+       logScore = log_score,
        cond.pred.test = cond.pred.test,
        gbmObj = fit,
-       last_iter = s,
+       lambda_init = lambda_init,
        mu_all = mu_all, logLik_all = logLik_all, sigma_all = sigma_all, zhat_all = zhat_all, lambda_all = lambda_all, # EM trajectory
        transformation = transformation, lambda = lambda, y_max = y_max, tol = tol, max_iters = max_iters) # And return the info about the model as well
 }
@@ -1753,7 +1801,7 @@ truncnorm_mom = function(a, b, mu, sig) {
 #' }
 #'
 #' @export
-star_EM_models = function(y, X, X.test = NULL,
+star_EM_models = function(y, X, X.test = NULL, y.test = NULL,
                           estimator,
                           transformation = 'log',
                           lambda = NULL,
@@ -1809,10 +1857,14 @@ star_EM_models = function(y, X, X.test = NULL,
   if (estimate_lambda) {
     # Initialize on (0,1)
     lambda = runif(n = 1)
+    # lambda = 1
+    # print(lambda)
 
     # Sequence for grid search:
-    lam_seq = seq(0.001, 1.2, length.out = 100)
+    # lam_seq = seq(0.001, 1.2, length.out = 100)
   }
+
+  lambda_init = lambda0 = lambda
 
   # Also define the rounding function and the corresponding intervals:
   if (transformation == 'log' || lambda == 0) {
@@ -1893,9 +1945,9 @@ star_EM_models = function(y, X, X.test = NULL,
     # print(range(z_hat))
 
     # Check: if any infinite z_hat values, return these indices and stop
-    if (any(is.infinite(z_hat))) {
+    if (any(is.infinite(z_hat)) || any(is.na(z_hat))) {
       warning('Infinite z_hat values: returning the problematic indices')
-      return(list(error_inds = which(is.infinite(z_hat))))
+      return(list(error_inds = which(is.infinite(z_hat) | is.na(z_hat))))
     }
     # ----------------------------------
     ## M-step: estimation
@@ -1909,12 +1961,51 @@ star_EM_models = function(y, X, X.test = NULL,
 
     # If estimating lambda:
     if (estimate_lambda) {
+
+      decimals = 8
+      size = 2
+
+      # xx = c()
+      # yy = c()
+
+      lam_seq = seq(1e-8, 1.0, length.out = 2 * size + 1)
+
+      for (p in 1:decimals) {
+        lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc) {
+          -logLikeRcpp(g_a_j = g(a_y, l_bc),
+                       g_a_jp1 = g(a_yp1, l_bc),
+                       mu = mu_hat,
+                       sigma = rep(sigma_hat, n))}))]
+        step = lam_seq[2] - lam_seq[1]
+        if (lambda - step < 0) lambda = step + 1e-8
+        lam_seq = seq(lambda - step, lambda + step, length.out = 2 * size + 1)
+
+        # xx = c(xx, lambda)
+        # yy = c(yy, logLikeRcpp(g_a_j = g(a_y, lambda),
+        #                        g_a_jp1 = g(a_yp1, lambda),
+        #                        mu = mu_hat,
+        #                        sigma = rep(sigma_hat, n)))
+
+      }
+
       # Grid search:
       lambda = lam_seq[which.min(sapply(lam_seq, function(l_bc) {
         -logLikeRcpp(g_a_j = g(a_y, l_bc),
                      g_a_jp1 = g(a_yp1, l_bc),
                      mu = mu_hat,
                      sigma = rep(sigma_hat, n))}))]
+
+      # xx = c(xx, lambda)
+      # yy = c(yy, logLikeRcpp(g_a_j = g(a_y, lambda),
+      #                        g_a_jp1 = g(a_yp1, lambda),
+      #                        mu = mu_hat,
+      #                        sigma = rep(sigma_hat, n)))
+      #
+      # plot(xx, yy, xlog = TRUE)
+      # lines(xx, yy, type = 'b')
+      #
+      # plot(xx, yy, xlim = c(0, 1), ylim = c(logLik0, logLik0 * 0.80))
+      # lines(xx, yy, type = 'b')
 
       # Next, update the lower and upper limits:
       z_lower = g(a_y, lambda = lambda);
@@ -1934,6 +2025,9 @@ star_EM_models = function(y, X, X.test = NULL,
     # Check whether to stop:
     if (is.finite(logLik_em) && is.finite(logLik_em0) && (logLik_em - logLik_em0)^2 < tol) break
     logLik_em0 = logLik_em
+
+    if (is.finite(lambda) && is.finite(lambda0) && (lambda - lambda0)^2 < tol) break
+    lambda0 = lambda
 
   }
 
@@ -1971,13 +2065,19 @@ star_EM_models = function(y, X, X.test = NULL,
                                            mu = mu.test, sigma = rep(sigma_hat, n),
                                            Jmax = Jmax)
 
+    a_y_test = a_j(y.test); a_yp1_test = a_j(y.test + 1)
+    z_lower_test = g(a_y_test, lambda = lambda);
+    z_upper_test = g(a_yp1_test, lambda = lambda)
+
+    log_score = sum(logLikeRcpp(g_a_j = z_lower_test, g_a_jp1 = z_upper_test, mu = mu.test, sigma = rep(sigma_hat, length(y_test))))
+
     # Simulate 1000 values at the test points:
     # cond.pred.test = t(sapply(1:1000, function(j)
     #   round_fun(ginv(rnorm(n = nrow(X.test), mean = mu.test, sd = sigma_hat),
     #                  lambda = lambda))))
 
   } else {
-    fitted.values.test = cond.pred.test = NULL
+    fitted.values.test = cond.pred.test = log_score = NULL
   }
 
   # Return:
@@ -1989,8 +2089,9 @@ star_EM_models = function(y, X, X.test = NULL,
        residuals = resids_ds,
        logLik = logLik_em,
        logLik0 = logLik0,
+       logScore = log_score,
        modelObj = fit,
-       last_iter = s,
+       lambda_init = lambda_init,
        # theta_all = theta_all,
        mu_all = mu_all, logLik_all = logLik_all, sigma_all = sigma_all, zhat_all = zhat_all, lambda_all = lambda_all, # EM trajectory
        transformation = transformation, lambda = lambda, y_max = y_max, tol = tol, max_iters = max_iters) # And return the info about the model as well
